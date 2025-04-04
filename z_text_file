@@ -1,0 +1,398 @@
+////////////////////////////////////////////////
+# Laravel Personal Goal Tracker
+
+This project is a Laravel-based Personal Goal Tracker application that helps users set and track progress toward achieving their goals. Users can break down large goals into smaller tasks and track milestones.
+
+## Directory Structure
+
+```
+personal-goal-tracker/
+├── app/
+│   ├── Console/
+│   ├── Exceptions/
+│   ├── Http/
+│   │   ├── Controllers/
+│   │   ├── Middleware/
+│   ├── Models/
+├── bootstrap/
+├── config/
+├── database/
+│   ├── factories/
+│   ├── migrations/
+│   ├── seeders/
+├── public/
+├── resources/
+│   ├── views/
+│   ├── css/
+│   ├── js/
+├── routes/
+│   ├── api.php
+│   ├── web.php
+├── storage/
+├── tests/
+├── .env.example
+├── artisan
+├── composer.json
+├── package.json
+├── server.php
+├── webpack.mix.js
+```
+
+## Step 1: Install Laravel
+
+Run the following command to create a new Laravel project:
+```sh
+composer create-project --prefer-dist laravel/laravel personal-goal-tracker
+```
+
+## Step 2: Configure the Environment
+Copy the `.env.example` file to `.env` and update database configurations:
+```sh
+cp .env.example .env
+php artisan key:generate
+```
+Edit `.env` to set up your database:
+```ini
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=goal_tracker
+DB_USERNAME=root
+DB_PASSWORD=
+```
+Run migrations:
+```sh
+php artisan migrate
+```
+
+## Step 3: Create Models and Migrations
+Run the following commands to create models for `Goal`, `Task`, and `Milestone`:
+```sh
+php artisan make:model Goal -m
+php artisan make:model Task -m
+php artisan make:model Milestone -m
+```
+This will create migration files in `database/migrations/`. Define the schema in each migration file.
+
+### Example: Goal Migration (`database/migrations/YYYY_MM_DD_create_goals_table.php`)
+```php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateGoalsTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('goals', function (Blueprint $table) {
+            $table->id();
+            $table->string('title');
+            $table->text('description')->nullable();
+            $table->date('due_date')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('goals');
+    }
+}
+```
+
+## Step 4: Create Controllers
+Generate controllers for handling logic:
+```sh
+php artisan make:controller GoalController --resource
+php artisan make:controller TaskController --resource
+php artisan make:controller MilestoneController --resource
+```
+
+Each controller will have default methods (`index`, `store`, `update`, `destroy`) for CRUD operations.
+
+
+## Step 5: Define Routes
+Modify `routes/web.php` to set up goal tracking routes:
+```php
+use App\Http\Controllers\GoalController;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/goals', [GoalController::class, 'index'])->name('goals.index');
+Route::post('/goals', [GoalController::class, 'store'])->name('goals.store');
+Route::get('/goals/{goal}', [GoalController::class, 'show'])->name('goals.show');
+Route::put('/goals/{goal}', [GoalController::class, 'update'])->name('goals.update');
+Route::delete('/goals/{goal}', [GoalController::class, 'destroy'])->name('goals.destroy');
+```
+
+For API-based routes, modify `routes/api.php` similarly:
+```php
+use App\Http\Controllers\GoalController;
+use Illuminate\Support\Facades\Route;
+
+Route::apiResource('goals', GoalController::class);
+```
+
+## Step 6: Implement Controller Methods
+Modify `app/Http/Controllers/GoalController.php` to handle goal logic:
+```php
+namespace App\Http\Controllers;
+
+use App\Models\Goal;
+use Illuminate\Http\Request;
+
+class GoalController extends Controller
+{
+    public function index()
+    {
+        return response()->json(Goal::all());
+    }
+
+    public function store(Request $request)
+    {
+        $goal = Goal::create($request->all());
+        return response()->json($goal, 201);
+    }
+
+    public function show(Goal $goal)
+    {
+        return response()->json($goal);
+    }
+
+    public function update(Request $request, Goal $goal)
+    {
+        $goal->update($request->all());
+        return response()->json($goal);
+    }
+
+    public function destroy(Goal $goal)
+    {
+        $goal->delete();
+        return response()->json(null, 204);
+    }
+}
+```
+
+
+## Step 3: Install Authentication
+Laravel provides built-in authentication using Laravel Breeze or Laravel Sanctum. To install Laravel Breeze for authentication:
+```sh
+composer require laravel/breeze --dev
+php artisan breeze:install
+```
+For API authentication, install Laravel Sanctum:
+```sh
+composer require laravel/sanctum
+php artisan vendor:publish --provider="Laravel\Sanctum\SanctumServiceProvider"
+php artisan migrate
+```
+Add Sanctum middleware in `app/Http/Kernel.php`:
+```php
+protected $middlewareGroups = [
+    'api' => [
+        \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        'throttle:api',
+        \Illuminate\Routing\Middleware\SubstituteBindings::class,
+    ],
+];
+```
+
+## Step 4: Set Up Authentication Routes
+Modify `routes/api.php` to include authentication endpoints:
+```php
+use App\Http\Controllers\AuthController;
+use Illuminate\Support\Facades\Route;
+
+Route::post('/register', [AuthController::class, 'register']);
+Route::post('/login', [AuthController::class, 'login']);
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+});
+```
+
+## Step 5: Create AuthController
+Generate an authentication controller:
+```sh
+php artisan make:controller AuthController
+```
+Edit `app/Http/Controllers/AuthController.php`:
+```php
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
+
+class AuthController extends Controller
+{
+    public function register(Request $request)
+    {
+        $request->validate([
+            'name' => 'required',
+            'email' => 'required|email|unique:users',
+            'password' => 'required|min:6',
+        ]);
+
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+        ]);
+
+        return response()->json($user, 201);
+    }
+
+    public function login(Request $request)
+    {
+        $credentials = $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
+
+        if (!Auth::attempt($credentials)) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $user = Auth::user();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json(['token' => $token]);
+    }
+
+    public function logout()
+    {
+        Auth::user()->tokens()->delete();
+        return response()->json(['message' => 'Logged out']);
+    }
+}
+```
+
+## Step 6: Set Up the Frontend
+; To build the frontend, install Vue.js or React with Vite:
+; ```sh
+; npm install && npm run dev
+; ```
+
+; Create a Vue component for login (`resources/js/components/Login.vue`):
+; ```vue
+; <template>
+;     <div>
+;         <h2>Login</h2>
+;         <form @submit.prevent="login">
+;             <input v-model="email" type="email" placeholder="Email" required />
+;             <input v-model="password" type="password" placeholder="Password" required />
+;             <button type="submit">Login</button>
+;         </form>
+;     </div>
+; </template>
+; <script>
+; import axios from 'axios';
+; export default {
+;     data() {
+;         return {
+;             email: '',
+;             password: ''
+;         };
+;     },
+;     methods: {
+;         async login() {
+;             try {
+;                 const response = await axios.post('/api/login', {
+;                     email: this.email,
+;                     password: this.password
+;                 });
+;                 localStorage.setItem('token', response.data.token);
+;             } catch (error) {
+;                 console.error('Login failed');
+;             }
+;         }
+;     }
+; };
+; </script>
+
+```
+Now, authentication pages like `/login` and `/register` are available.
+
+## Step 4: Define Routes for Goals
+Modify `routes/web.php` to include goal management:
+```php
+use App\Http\Controllers\GoalController;
+use Illuminate\Support\Facades\Route;
+
+Route::middleware(['auth'])->group(function () {
+    Route::resource('goals', GoalController::class);
+});
+```
+
+## Step 5: Implement GoalController
+Modify `app/Http/Controllers/GoalController.php`:
+```php
+namespace App\Http\Controllers;
+
+use App\Models\Goal;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
+class GoalController extends Controller
+{
+    public function index()
+    {
+        $goals = Auth::user()->goals;
+        return view('goals.index', compact('goals'));
+    }
+
+    public function create()
+    {
+        return view('goals.create');
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'title' => 'required',
+            'description' => 'nullable',
+            'due_date' => 'nullable|date',
+        ]);
+        Auth::user()->goals()->create($request->all());
+        return redirect()->route('goals.index');
+    }
+
+    public function edit(Goal $goal)
+    {
+        return view('goals.edit', compact('goal'));
+    }
+
+    public function update(Request $request, Goal $goal)
+    {
+        $goal->update($request->all());
+        return redirect()->route('goals.index');
+    }
+
+    public function destroy(Goal $goal)
+    {
+        $goal->delete();
+        return redirect()->route('goals.index');
+    }
+}
+```
+
+## Step 6: Create Views for Goals
+### `resources/views/goals/index.blade.php`
+```blade
+@extends('layouts.app')
+@section('content')
+    <h2>Your Goals</h2>
+    <a href="{{ route('goals.create') }}">Add New Goal</a>
+    <ul>
+        @foreach ($goals as $goal)
+            <li>
+                {{ $goal->title }} - <a href="{{ route('goals.edit', $goal) }}">Edit</a>
+                <form method="POST" action="{{ route('goals.destroy', $goal) }}">
+                    @csrf @method('DELETE')
+                    <button type="submit">Delete</button>
+                </form>
+            </li>
+        @endforeach
+    </ul>
+@endsection
+```
